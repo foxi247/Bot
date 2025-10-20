@@ -23,7 +23,10 @@ safety_settings = [
 ]
 
 # Используем рабочую модель (проверь через list_models.py!)
-MODEL_NAME = "models/gemini-1.5-flash-001"
+# ... остальной код ...
+
+# Используем гарантированно доступную модель
+MODEL_NAME = "models/gemini-pro"
 
 model = genai.GenerativeModel(
     model_name=MODEL_NAME,

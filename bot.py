@@ -19,7 +19,7 @@ WEBHOOK_PORT = int(os.environ.get("PORT", 8000))
 
 async def on_startup(bot: Bot) -> None:
     await init_db()
-    base_url = os.environ.get("RAILWAY_PUBLIC_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+    base_url = os.environ.get("WEBHOOK_URL")
     if not base_url:
         logging.error("❌ Не найден публичный URL (RAILWAY_PUBLIC_URL или RENDER_EXTERNAL_URL)")
         return

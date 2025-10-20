@@ -26,7 +26,7 @@ safety_settings = [
 # ... остальной код ...
 
 # Используем гарантированно доступную модель
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "models/gemini-2.5-flash-image"
 
 model = genai.GenerativeModel(
     model_name=MODEL_NAME,

@@ -10,7 +10,7 @@ from handlers.balance import router as balance_router
 from handlers.profile import router as profile_router
 from handlers.ai_menu import router as ai_menu_router
 from handlers.gemini_handler import router as gemini_router
-
+from handlers.nanobanano_handler import router as nanobanano_router
 logging.basicConfig(level=logging.INFO)
 
 WEBHOOK_PATH = "/webhook"
@@ -34,8 +34,8 @@ def main() -> None:
     dp.include_router(profile_router)
     dp.include_router(ai_menu_router)
     dp.include_router(gemini_router)
+    dp.include_router(nanobanano_router)
     dp.startup.register(on_startup)
-
     app = web.Application()
     
     # Healthcheck для Railway

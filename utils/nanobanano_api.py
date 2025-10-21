@@ -6,16 +6,15 @@ import os
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 async def generate_nanobanano_image(prompt: str) -> str:
-    """
-    Генерирует изображение через Replicate (Stable Diffusion XL).
-    Возвращает URL изображения или None в случае ошибки.
-    """
     if not REPLICATE_API_TOKEN:
         raise ValueError("❌ REPLICATE_API_TOKEN не задан")
 
+    # Актуальная версия SDXL (на октябрь 2025)
+    MODEL_VERSION = "da77bc59ee60423279fd632efb4795ab731d9e3ca9705ef3341091fb989b7eaf"
+
     async with aiohttp.ClientSession() as session:
         try:
-            # Запуск предикшена
+            # Создание задачи
             async with session.post(
                 "https://api.replicate.com/v1/predictions",
                 headers={
@@ -23,37 +22,41 @@ async def generate_nanobanano_image(prompt: str) -> str:
                     "Content-Type": "application/json"
                 },
                 json={
-                    "version": "39ed52f2a78e934b3ba6e2a89f5b1c712102b1505b650f9075e3683434f3b5fc",  # SDXL
+                    "version": MODEL_VERSION,
                     "input": {
-                        "prompt": f"{prompt}, 4k, high quality",
-                        "negative_prompt": "blurry, low quality, text",
+                        "prompt": prompt,
+                        "negative_prompt": "ugly, blurry, text, signature",
                         "width": 768,
-                        "height": 768
+                        "height": 768,
+                        "num_outputs": 1
                     }
                 }
             ) as resp:
                 if resp.status != 201:
-                    error = await resp.text()
-                    print(f"Ошибка создания предикшена: {error}")
+                    error_text = await resp.text()
+                    print(f"❌ Ошибка создания: {resp.status} - {error_text}")
                     return None
                 data = await resp.json()
                 prediction_id = data["id"]
 
-            # Ожидание результата (макс. 60 сек)
-            for _ in range(60):
+            # Ожидание результата (до 90 сек)
+            for i in range(90):
                 await asyncio.sleep(1)
                 async with session.get(
                     f"https://api.replicate.com/v1/predictions/{prediction_id}",
                     headers={"Authorization": f"Token {REPLICATE_API_TOKEN}"}
                 ) as resp:
                     result = await resp.json()
-                    if result["status"] == "succeeded":
-                        return result["output"][0]  # URL изображения
-                    elif result["status"] in ("failed", "canceled"):
-                        print(f"Генерация провалена: {result.get('error')}")
+                    status = result["status"]
+                    if status == "succeeded":
+                        return result["output"][0]
+                    elif status in ("failed", "canceled"):
+                        error = result.get("error", "Неизвестная ошибка")
+                        print(f"❌ Генерация провалена: {error}")
                         return None
+            print("❌ Таймаут: генерация заняла больше 90 секунд")
             return None
 
         except Exception as e:
-            print(f"Исключение при генерации: {e}")
+            print(f"💥 Исключение: {e}")
             return None

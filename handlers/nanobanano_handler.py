@@ -1,67 +1,41 @@
-# handlers/nanobanano_handler.py
-from aiogram import Router, F, types
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext
-from database.db import get_balance, update_balance
-from utils.nanobanano_api import generate_nanobanano_image
-import asyncio
+import replicate
+import requests
+from aiogram import Router, types
+from aiogram.filters import Command
+from config import REPLICATE_API_TOKEN # Убедись, что токен добавлен в config.py
 
 router = Router()
 
-class NanoBananoState(StatesGroup):
-    waiting_for_prompt = State()
+# Установка токена из конфига
+replicate_client = replicate.Client(api_token=REPLICATE_API_TOKEN)
 
-@router.callback_query(F.data == "ai_nanobanano")
-async def start_nanobanano(callback: types.CallbackQuery, state: FSMContext):
-    user_id = callback.from_user.id
-    balance = await get_balance(user_id)
-    if balance < 1:
-        await callback.message.answer("❌ Недостаточно монет! Пополните баланс.")
-        await callback.answer()
-        return
-
-    await callback.message.answer("🎨 Отправьте описание изображения для Nano Banano:")
-    await state.set_state(NanoBananoState.waiting_for_prompt)
-    await callback.answer()
-
-@router.message(NanoBananoState.waiting_for_prompt)
-async def process_nanobanano_prompt(message: types.Message, state: FSMContext):
+@router.message(Command("generate_image")) # Или по нажатию кнопки
+async def generate_image(message: types.Message):
     user_id = message.from_user.id
-    prompt = message.text.strip()
+    prompt = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "A generic image of a cat"
 
-    if not prompt:
-        await message.answer("Пожалуйста, введите непустое описание.")
-        return
-
-    balance = await get_balance(user_id)
-    if balance < 1:
-        await message.answer("❌ Недостаточно монет!")
-        await state.clear()
-        return
-
-    # Списываем 1 монету
-    await update_balance(user_id, -1)
-
-    # Анимация загрузки
-    progress_msg = await message.answer("🍌 Nano Banano: 10%...")
-    for percent in [30, 60, 90]:
-        await asyncio.sleep(0.8)
-        await progress_msg.edit_text(f"🍌 Nano Banano: {percent}%...")
-    await asyncio.sleep(0.8)
-    await progress_msg.edit_text("✅ Генерирую изображение...")
-
-    # Генерация через Replicate
-    image_url = await generate_nanobanano_image(prompt)
-
-    await progress_msg.delete()
-
-    if image_url:
-        await message.answer_photo(
-            photo=image_url,
-            caption="✨ Ваше изображение готово! (сгенерировано через Nano Banano)"
+    try:
+        # Запуск модели
+        output = replicate_client.run(
+            "stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc",
+            input={
+                "width": 768,
+                "height": 768,
+                "prompt": prompt,
+                "refine": "expert_ensemble_refiner",
+                "apply_watermark": False,
+                "num_inference_steps": 25
+            }
         )
-    else:
-        await message.answer(
-            "⚠️ Не удалось сгенерировать изображение. Попробуйте другое описание."
-        )
-    await state.clear()
+
+        if output and len(output) > 0:
+            image_url = output[0] # Берём первый URL из результата
+            # Отправляем фото в чат
+            await message.answer_photo(photo=image_url, caption=f"Generated image for: {prompt}")
+        else:
+            await message.answer("Failed to generate image: No output received.")
+    except Exception as e:
+        print(f"Error generating image with Replicate: {e}") # Логируем ошибку
+        await message.answer(f"An error occurred while generating the image: {str(e)}")
+
+# Не забудь импортировать и использовать этот роутер в bot.py, как делали с gemini_router
